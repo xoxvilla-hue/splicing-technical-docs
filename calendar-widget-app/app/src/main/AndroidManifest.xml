@@ -12,7 +12,7 @@
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat">
+        android:theme="@style/Theme.CalendarWidget">
 
         <activity
             android:name=".MainActivity"
@@ -49,6 +49,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Handle notification action buttons -->
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false" />
 
     </application>
 </manifest>

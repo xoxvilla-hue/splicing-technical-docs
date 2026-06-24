@@ -6,6 +6,7 @@ import android.content.Intent
 
 class MidnightReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        DismissedEventsStore.clearAll(context)
         val tomorrow = CalendarRepository(context).getTomorrowEvents()
 
         if (tomorrow.isNotEmpty()) {
