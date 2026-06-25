@@ -2,7 +2,8 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Wild Runner - เกมวิ่งผจญภัย</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,25 +13,40 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    min-height: 100dvh;
     font-family: 'Arial', sans-serif;
     overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
-#wrap { position: relative; }
+#wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 canvas {
     display: block;
+    /* scale to fit any screen while keeping aspect ratio */
+    width: min(960px, 100vw, calc(100dvh * (960 / 520)));
+    height: auto;
     border: 2px solid #00cc66;
     border-radius: 6px;
     box-shadow: 0 0 40px rgba(0,204,102,0.25);
+    touch-action: none;
 }
 #hint {
     position: absolute;
-    bottom: -28px;
+    bottom: -22px;
     left: 50%;
     transform: translateX(-50%);
     color: #556;
-    font-size: 12px;
+    font-size: 11px;
     white-space: nowrap;
 }
+/* hide keyboard hint on touch devices */
+@media (pointer: coarse) { #hint { display: none; } }
 </style>
 </head>
 <body>
@@ -57,6 +73,85 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { K[e.code] = false; });
 
+// ─── Touch controls ───────────────────────────────────────────────────────────
+// Touch button state (drawn on canvas)
+const TB = {
+    jump:  { x: W-105, y: H-110, r: 68, pressed: false },  // right thumb
+    dash:  { x: 105,   y: H-110, r: 55, pressed: false },  // left thumb
+    left:  { x: 55,    y: H-110, r: 50, pressed: false },  // select-screen only
+    right: { x: 175,   y: H-110, r: 50, pressed: false },  // select-screen only
+};
+
+function toCanvasCoords(touch) {
+    const rect = c.getBoundingClientRect();
+    return {
+        x: (touch.clientX - rect.left) * (W / rect.width),
+        y: (touch.clientY - rect.top)  * (H / rect.height)
+    };
+}
+
+function hitBtn(btn, cx2, cy2) {
+    const dx = cx2 - btn.x, dy = cy2 - btn.y;
+    return dx*dx + dy*dy <= btn.r*btn.r;
+}
+
+function processTouches(e) {
+    e.preventDefault();
+    // Reset all touch states
+    TB.jump.pressed = false; TB.dash.pressed = false;
+    TB.left.pressed = false; TB.right.pressed = false;
+
+    for (const t of e.touches) {
+        const { x, y } = toCanvasCoords(t);
+
+        if (state === S.MENU || state === S.OVER || state === S.WIN) {
+            // any touch = confirm  (handled on touchstart only via onTouchStart)
+        } else if (state === S.SELECT) {
+            if (hitBtn(TB.left,  x, y)) TB.left.pressed  = true;
+            if (hitBtn(TB.right, x, y)) TB.right.pressed = true;
+            if (hitBtn(TB.jump,  x, y)) TB.jump.pressed  = true;
+        } else if (state === S.PLAY) {
+            if (hitBtn(TB.jump, x, y)) TB.jump.pressed = true;
+            if (hitBtn(TB.dash, x, y)) TB.dash.pressed = true;
+        }
+    }
+
+    // Act on held states
+    if (state === S.PLAY) {
+        if (TB.dash.pressed && ch && ch.dash && P.dashCD <= 0) {
+            onKey('KeyX');
+        }
+    }
+}
+
+function onTouchStart(e) {
+    e.preventDefault();
+    for (const t of e.touches) {
+        const { x, y } = toCanvasCoords(t);
+        if (state === S.MENU)  { onKey('Enter'); return; }
+        if (state === S.OVER || state === S.WIN) { onKey('Enter'); return; }
+        if (state === S.SELECT) {
+            if (hitBtn(TB.left,  x, y)) { onKey('ArrowLeft');  return; }
+            if (hitBtn(TB.right, x, y)) { onKey('ArrowRight'); return; }
+            if (hitBtn(TB.jump,  x, y)) { onKey('Enter');      return; }
+            // tap left half / right half of screen
+            if (x < W/2) onKey('ArrowLeft');
+            else          onKey('Enter');
+            return;
+        }
+        if (state === S.PLAY) {
+            if (hitBtn(TB.jump, x, y)) { onKey('ArrowUp'); }
+            if (hitBtn(TB.dash, x, y) && ch && ch.dash) { onKey('KeyX'); }
+        }
+    }
+    processTouches(e);
+}
+
+c.addEventListener('touchstart',  onTouchStart,  { passive: false });
+c.addEventListener('touchmove',   processTouches, { passive: false });
+c.addEventListener('touchend',    processTouches, { passive: false });
+c.addEventListener('touchcancel', processTouches, { passive: false });
+
 // ─── Character definitions ────────────────────────────────────────────────────
 const CHARS = {
     fox: {
@@ -65,7 +160,7 @@ const CHARS = {
         col1: '#FF6B2B', col2: '#FF8C42', col3: '#FF4500',
         abil: ['วิ่งเร็วที่สุด', 'Dash พุ่งผ่านสิ่งกีดขวาง (กด X)'],
         weak: 'กระโดดครั้งเดียว ไม่สูง',
-        tip: 'Dash [X] ผ่านหินและทำลายศัตรูได้!'
+        tip: 'กด DASH (ซ้าย) หรือ [X] พุ่งผ่านหินและศัตรูได้!'
     },
     rabbit: {
         id: 'rabbit', name: 'กระต่าย', emoji: '🐰',
@@ -73,7 +168,7 @@ const CHARS = {
         col1: '#E8D5C4', col2: '#F5EDE3', col3: '#D4A090',
         abil: ['กระโดดสูงที่สุด', 'กระโดดอีกครั้งกลางอากาศ (↑×2)'],
         weak: 'วิ่งช้า ไม่สามารถโจมตีศัตรู',
-        tip: 'กระโดด 2 ครั้งเพื่อเก็บไอเทมบนที่สูง!'
+        tip: 'แตะ ↑ สองครั้งกลางอากาศ — กระโดดซ้อนเพื่อเก็บของสูง!'
     },
     tiger: {
         id: 'tiger', name: 'เสือ', emoji: '🐯',
@@ -81,7 +176,7 @@ const CHARS = {
         col1: '#FFA500', col2: '#FFB833', col3: '#CC7700',
         abil: ['กระทืบศัตรูด้วยการกระโดดลง', 'ทำลายหินขวางทาง'],
         weak: 'กระโดดได้ครั้งเดียว',
-        tip: 'กระโดดลงทับหัวศัตรูเพื่อแต้มโบนัส!'
+        tip: 'แตะ ↑ แล้วดิ่งลงทับหัวศัตรู — Tiger โจมตีและทุบหินได้!'
     }
 };
 const CHAR_KEYS = ['fox', 'rabbit', 'tiger'];
@@ -861,6 +956,77 @@ function drawWin() {
     cx.textAlign='left';
 }
 
+// ─── Touch buttons (drawn on canvas) ─────────────────────────────────────────
+function drawTouchButtons() {
+    // Only draw on touch-capable devices  (skip on desktop, keep UI clean)
+    const isTouch = navigator.maxTouchPoints > 0;
+    if (!isTouch) return;
+
+    if (state === S.PLAY) {
+        // JUMP — right side
+        cx.globalAlpha = TB.jump.pressed ? 0.85 : 0.45;
+        cx.fillStyle = '#00FF88';
+        circle(TB.jump.x, TB.jump.y, TB.jump.r);
+        cx.globalAlpha = 1;
+        cx.fillStyle = '#FFF';
+        cx.font = 'bold 32px Arial'; cx.textAlign = 'center';
+        cx.fillText('↑', TB.jump.x, TB.jump.y + 11);
+
+        // DASH — left side (only for Fox)
+        if (ch && ch.dash) {
+            const ready = P.dashCD <= 0;
+            cx.globalAlpha = TB.dash.pressed ? 0.85 : (ready ? 0.45 : 0.2);
+            cx.fillStyle = ready ? '#FF8844' : '#554433';
+            circle(TB.dash.x, TB.dash.y, TB.dash.r);
+            cx.globalAlpha = 1;
+            cx.fillStyle = ready ? '#FFF' : '#888';
+            cx.font = 'bold 22px Arial';
+            cx.fillText('DASH', TB.dash.x, TB.dash.y - 6);
+            cx.font = '13px Arial';
+            cx.fillText(ready ? 'พร้อม' : `${Math.ceil(P.dashCD/60)}s`, TB.dash.x, TB.dash.y + 14);
+        }
+        cx.textAlign = 'left';
+    }
+
+    if (state === S.SELECT) {
+        // ◀ left button
+        cx.globalAlpha = TB.left.pressed ? 0.85 : 0.45;
+        cx.fillStyle = '#4488FF';
+        circle(TB.left.x, TB.left.y, TB.left.r);
+        cx.globalAlpha = 1;
+        cx.fillStyle = '#FFF'; cx.font = 'bold 30px Arial'; cx.textAlign = 'center';
+        cx.fillText('◀', TB.left.x, TB.left.y + 10);
+
+        // ▶ right button
+        cx.globalAlpha = TB.right.pressed ? 0.85 : 0.45;
+        cx.fillStyle = '#4488FF';
+        circle(TB.right.x, TB.right.y, TB.right.r);
+        cx.globalAlpha = 1;
+        cx.fillStyle = '#FFF';
+        cx.fillText('▶', TB.right.x, TB.right.y + 10);
+
+        // CONFIRM button (reuse jump position)
+        cx.globalAlpha = TB.jump.pressed ? 0.85 : 0.5;
+        cx.fillStyle = '#00FF88';
+        circle(TB.jump.x, TB.jump.y, TB.jump.r);
+        cx.globalAlpha = 1;
+        cx.fillStyle = '#FFF'; cx.font = 'bold 18px Arial';
+        cx.fillText('เลือก', TB.jump.x, TB.jump.y - 4);
+        cx.font = '13px Arial';
+        cx.fillText('ตัวนี้!', TB.jump.x, TB.jump.y + 16);
+        cx.textAlign = 'left';
+    }
+
+    if (state === S.MENU || state === S.OVER || state === S.WIN) {
+        // tap anywhere hint
+        cx.globalAlpha = 0.5 + Math.sin(gt * 0.08) * 0.3;
+        cx.fillStyle = '#FFF';
+        cx.font = 'bold 18px Arial'; cx.textAlign = 'center';
+        cx.fillText('👆 แตะหน้าจอเพื่อเริ่ม', W/2, H - 18);
+        cx.globalAlpha = 1; cx.textAlign = 'left';
+    }
+}
+
 // ─── Sparks draw ──────────────────────────────────────────────────────────────
 function drawSparks() {
     for(const s of sparks){
@@ -895,6 +1061,7 @@ function loop() {
         drawHUD();
         drawWin();
     }
+    drawTouchButtons();
 
     requestAnimationFrame(loop);
 }
