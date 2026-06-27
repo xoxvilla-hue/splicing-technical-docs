@@ -65,9 +65,9 @@ class MainActivity : ComponentActivity() {
 fun CalendarAppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            background = Color(0xFF0F0F1A),
-            surface = Color(0xFF1C1C2E),
-            primary = Color(0xFF9C88FF)
+            background = Color(0xFF050D1A),
+            surface = Color(0xFF0D1E35),
+            primary = Color(0xFF4FC3F7)
         ),
         content = content
     )
@@ -91,7 +91,7 @@ fun CalendarScreen(showTomorrow: Boolean) {
     }
 
     val bgGradient = Brush.verticalGradient(
-        colors = listOf(Color(0xFF0F0F1A), Color(0xFF1A0E2E))
+        colors = listOf(Color(0xFF050D1A), Color(0xFF0A1628))
     )
 
     Box(
@@ -99,11 +99,13 @@ fun CalendarScreen(showTomorrow: Boolean) {
             .fillMaxSize()
             .background(bgGradient)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
             AnimatedHeader(visible = headerVisible, isTomorrow = isTomorrow)
 
-            // Toggle วันนี้ / พรุ่งนี้
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,6 +134,17 @@ fun CalendarScreen(showTomorrow: Boolean) {
                 EventList(events = events)
             }
         }
+
+        Text(
+            text = "By Phanu",
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 16.dp),
+            color = Color(0xFF1A3050),
+            fontSize = 10.sp,
+            letterSpacing = 0.5.sp
+        )
     }
 }
 
@@ -155,7 +168,7 @@ fun AnimatedHeader(visible: Boolean, isTomorrow: Boolean) {
         ) {
             Text(
                 text = if (isTomorrow) "นัดหมายพรุ่งนี้ 🌙" else "นัดหมายวันนี้ ☀️",
-                color = Color(0xFF9C88FF),
+                color = Color(0xFF4FC3F7),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -174,12 +187,12 @@ fun AnimatedHeader(visible: Boolean, isTomorrow: Boolean) {
 @Composable
 fun DayTab(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val bgColor by animateColorAsState(
-        targetValue = if (selected) Color(0xFF9C88FF) else Color(0xFF1C1C2E),
+        targetValue = if (selected) Color(0xFF4FC3F7) else Color(0xFF0D1E35),
         animationSpec = tween(250),
         label = "tabColor"
     )
     val textColor by animateColorAsState(
-        targetValue = if (selected) Color.White else Color(0xFF888899),
+        targetValue = if (selected) Color(0xFF050D1A) else Color(0xFF4A6A8A),
         animationSpec = tween(250),
         label = "tabTextColor"
     )
@@ -207,7 +220,7 @@ fun EventList(events: List<CalendarEvent>) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         itemsIndexed(events) { index, event ->
             AnimatedEventCard(event = event, index = index)
@@ -221,7 +234,7 @@ fun AnimatedEventCard(event: CalendarEvent, index: Int) {
     var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(event.id) {
-        delay(index * 80L) // stagger แต่ละ card
+        delay(index * 80L)
         visible = true
     }
 
@@ -242,52 +255,50 @@ fun EventCard(event: CalendarEvent) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1C2E))
+            .background(Color(0xFF0D1E35))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // แถบสีซ้าย
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(48.dp)
+                    .height(52.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(eventColor)
             )
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = event.title,
                     color = Color.White,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${timeFmt.format(Date(event.startTime))} – ${timeFmt.format(Date(event.endTime))}",
-                    color = eventColor,
-                    fontSize = 12.sp,
+                    color = Color(0xFF4FC3F7),
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
                 event.location?.let { loc ->
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = "📍 $loc",
-                        color = Color(0xFF888899),
-                        fontSize = 11.sp,
+                        color = Color(0xFF4A6A8A),
+                        fontSize = 12.sp,
                         maxLines = 1
                     )
                 }
             }
 
-            // จุดวงกลมสี
             Box(
                 modifier = Modifier
                     .size(10.dp)
@@ -322,13 +333,13 @@ fun EmptyState() {
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "ไม่มีนัดหมาย",
-                color = Color(0xFF888899),
+                color = Color(0xFF4A6A8A),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = "สบายใจได้เลย!",
-                color = Color(0xFF555566),
+                color = Color(0xFF2A4060),
                 fontSize = 14.sp
             )
         }

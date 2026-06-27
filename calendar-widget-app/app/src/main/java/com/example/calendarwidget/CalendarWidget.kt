@@ -3,6 +3,8 @@ package com.example.calendarwidget
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -15,8 +17,6 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,22 +36,22 @@ class CalendarWidget : GlanceAppWidget() {
 
 @Composable
 private fun WidgetContent(events: List<CalendarEvent>) {
-    val bgColor = Color(0xFF0F0F1A)
-    val surfaceColor = Color(0xFF1C1C2E)
-    val accentColor = Color(0xFF9C88FF)
+    val bgColor = Color(0xFF050D1A)
+    val surfaceColor = Color(0xFF0D1E35)
+    val accentColor = Color(0xFF4FC3F7)
     val textColor = Color(0xFFEEEEEE)
-    val subTextColor = Color(0xFF888899)
+    val subTextColor = Color(0xFF4A6A8A)
 
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(bgColor))
             .cornerRadius(20.dp)
-            .padding(14.dp)
+            .padding(top = 16.dp, start = 12.dp, end = 12.dp, bottom = 10.dp)
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
 
-            // Header — วันที่วันนี้
+            // Header
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -88,7 +88,7 @@ private fun WidgetContent(events: List<CalendarEvent>) {
                 modifier = GlanceModifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(ColorProvider(Color(0xFF2A2A3E)))
+                    .background(ColorProvider(Color(0xFF0D2040)))
             ) {}
 
             Spacer(modifier = GlanceModifier.height(10.dp))
@@ -134,6 +134,20 @@ private fun WidgetContent(events: List<CalendarEvent>) {
                     }
                 }
             }
+
+            Spacer(modifier = GlanceModifier.height(8.dp))
+
+            // By Phanu signature
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                Spacer(modifier = GlanceModifier.defaultWeight())
+                Text(
+                    text = "By Phanu",
+                    style = TextStyle(
+                        color = ColorProvider(Color(0xFF1A3050)),
+                        fontSize = 9.sp
+                    )
+                )
+            }
         }
     }
 }
@@ -150,14 +164,13 @@ private fun EventRow(
             .fillMaxWidth()
             .background(ColorProvider(surfaceColor))
             .cornerRadius(10.dp)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // สีเส้นข้างซ้ายแทน dot
         Box(
             modifier = GlanceModifier
                 .width(3.dp)
-                .height(32.dp)
+                .height(30.dp)
                 .background(ColorProvider(Color(event.calendarColor)))
                 .cornerRadius(2.dp)
         ) {}
@@ -178,7 +191,7 @@ private fun EventRow(
             Text(
                 text = buildTimeLabel(event),
                 style = TextStyle(
-                    color = ColorProvider(subTextColor),
+                    color = ColorProvider(Color(0xFF4FC3F7)),
                     fontSize = 11.sp
                 )
             )
