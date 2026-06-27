@@ -15,6 +15,8 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -158,7 +160,7 @@ private fun EventRow(
                 .height(32.dp)
                 .background(ColorProvider(Color(event.calendarColor)))
                 .cornerRadius(2)
-        )
+        ) {}
 
         Spacer(modifier = GlanceModifier.width(9.dp))
 
