@@ -109,7 +109,7 @@ private fun WidgetContent(events: List<CalendarEvent>) {
                 }
             } else {
                 Column(modifier = GlanceModifier.fillMaxWidth()) {
-                    val visibleEvents = events.take(4)
+                    val visibleEvents = events.take(6)
                     visibleEvents.forEachIndexed { index, event ->
                         EventRow(
                             event = event,
@@ -122,10 +122,10 @@ private fun WidgetContent(events: List<CalendarEvent>) {
                         }
                     }
 
-                    if (events.size > 4) {
+                    if (events.size > 6) {
                         Spacer(modifier = GlanceModifier.height(8.dp))
                         Text(
-                            text = "+ ${events.size - 4} รายการ",
+                            text = "+ ${events.size - 6} รายการ",
                             style = TextStyle(
                                 color = ColorProvider(subTextColor),
                                 fontSize = 11.sp
