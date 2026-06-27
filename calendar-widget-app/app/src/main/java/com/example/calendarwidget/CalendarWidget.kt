@@ -89,7 +89,7 @@ private fun WidgetContent(events: List<CalendarEvent>) {
                     .fillMaxWidth()
                     .height(1.dp)
                     .background(ColorProvider(Color(0xFF2A2A3E)))
-            )
+            ) {}
 
             Spacer(modifier = GlanceModifier.height(10.dp))
 
