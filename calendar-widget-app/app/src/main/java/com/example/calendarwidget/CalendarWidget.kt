@@ -46,7 +46,7 @@ private fun WidgetContent(events: List<CalendarEvent>) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(bgColor))
-            .cornerRadius(20)
+            .cornerRadius(20.dp)
             .padding(14.dp)
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
@@ -149,7 +149,7 @@ private fun EventRow(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(ColorProvider(surfaceColor))
-            .cornerRadius(10)
+            .cornerRadius(10.dp)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -159,7 +159,7 @@ private fun EventRow(
                 .width(3.dp)
                 .height(32.dp)
                 .background(ColorProvider(Color(event.calendarColor)))
-                .cornerRadius(2)
+                .cornerRadius(2.dp)
         ) {}
 
         Spacer(modifier = GlanceModifier.width(9.dp))
