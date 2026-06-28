@@ -40,6 +40,8 @@ fun EditGroupScreen(
     var groupName by remember { mutableStateOf(group.name) }
     var selected by remember { mutableStateOf(group.packageNames.toSet()) }
     var search by remember { mutableStateOf("") }
+    var showSetPin by remember { mutableStateOf(false) }
+    var currentPin by remember { mutableStateOf(group.pin) }
 
     val filtered = remember(search, allApps) {
         if (search.isBlank()) allApps
@@ -79,7 +81,7 @@ fun EditGroupScreen(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
                         modifier = Modifier.clickable {
-                            onSave(group.copy(name = groupName.ifBlank { group.name }, packageNames = selected.toList()))
+                            onSave(group.copy(name = groupName.ifBlank { group.name }, packageNames = selected.toList(), pin = currentPin))
                         }
                     )
                 }
@@ -113,7 +115,42 @@ fun EditGroupScreen(
                     fontSize = 9.sp,
                     letterSpacing = 2.sp
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // PIN Lock toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceDark)
+                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                        .clickable { showSetPin = true }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (currentPin != null) "🔒" else "🔓", fontSize = 16.sp)
+                        Column {
+                            Text(
+                                text = if (currentPin != null) "PIN Lock เปิดอยู่" else "PIN Lock",
+                                color = if (currentPin != null) GoldLight else Color(0xFF888880),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (currentPin != null) "กดเพื่อถอด PIN" else "กดเพื่อตั้งรหัส 4 หลัก",
+                                color = GoldFaint,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    Text(text = "›", color = Color(0xFF2A2210), fontSize = 18.sp)
+                }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Search bar
             Box(
@@ -164,6 +201,18 @@ fun EditGroupScreen(
                 }
                 item { Spacer(modifier = Modifier.height(20.dp)) }
             }
+        }
+
+        // PIN setup overlay
+        if (showSetPin) {
+            SetPinDialog(
+                currentPin = currentPin,
+                onConfirm = { newPin ->
+                    currentPin = newPin
+                    showSetPin = false
+                },
+                onDismiss = { showSetPin = false }
+            )
         }
     }
 }

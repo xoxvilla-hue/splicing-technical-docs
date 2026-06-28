@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
 sealed class Screen {
     object Home : Screen()
+    data class PinEntry(val groupId: String) : Screen()
     data class GroupDetail(val groupId: String) : Screen()
     data class EditGroup(val groupId: String) : Screen()
 }
@@ -47,22 +48,39 @@ fun AppNavigation() {
     var groupToDelete by remember { mutableStateOf<AppGroup?>(null) }
 
     BackHandler(enabled = currentScreen != Screen.Home) {
-        currentScreen = Screen.Home
+        currentScreen = when (currentScreen) {
+            is Screen.GroupDetail -> Screen.Home
+            is Screen.PinEntry -> Screen.Home
+            is Screen.EditGroup -> Screen.Home
+            else -> Screen.Home
+        }
     }
 
     when (val screen = currentScreen) {
         is Screen.Home -> HomeScreen(
             groups = groups,
             onGroupClick = { group ->
-                if (group.packageNames.isEmpty()) {
-                    currentScreen = Screen.EditGroup(group.id)
-                } else {
-                    currentScreen = Screen.GroupDetail(group.id)
+                when {
+                    group.packageNames.isEmpty() -> currentScreen = Screen.EditGroup(group.id)
+                    group.pin != null -> currentScreen = Screen.PinEntry(group.id)
+                    else -> currentScreen = Screen.GroupDetail(group.id)
                 }
             },
             onAddGroup = { showAddDialog = true },
             onDeleteGroup = { groupToDelete = it }
         )
+
+        is Screen.PinEntry -> {
+            val group = groups.find { it.id == screen.groupId }
+            if (group != null && group.pin != null) {
+                PinEntryScreen(
+                    groupName = group.name,
+                    correctPin = group.pin,
+                    onSuccess = { currentScreen = Screen.GroupDetail(screen.groupId) },
+                    onBack = { currentScreen = Screen.Home }
+                )
+            }
+        }
 
         is Screen.GroupDetail -> {
             val group = groups.find { it.id == screen.groupId }

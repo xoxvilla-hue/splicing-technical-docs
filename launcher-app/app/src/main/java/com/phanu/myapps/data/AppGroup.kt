@@ -3,5 +3,6 @@ package com.phanu.myapps.data
 data class AppGroup(
     val id: String,
     val name: String,
-    val packageNames: List<String> = emptyList()
+    val packageNames: List<String> = emptyList(),
+    val pin: String? = null
 )

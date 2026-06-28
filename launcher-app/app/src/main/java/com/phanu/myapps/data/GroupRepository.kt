@@ -18,7 +18,8 @@ class GroupRepository(context: Context) {
                 AppGroup(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
-                    packageNames = (0 until pkgs.length()).map { pkgs.getString(it) }
+                    packageNames = (0 until pkgs.length()).map { pkgs.getString(it) },
+                    pin = if (obj.has("pin")) obj.getString("pin").ifEmpty { null } else null
                 )
             }
         } catch (e: Exception) {
@@ -33,6 +34,7 @@ class GroupRepository(context: Context) {
                 put("id", group.id)
                 put("name", group.name)
                 put("packages", JSONArray(group.packageNames))
+                put("pin", group.pin ?: "")
             }
             array.put(obj)
         }
