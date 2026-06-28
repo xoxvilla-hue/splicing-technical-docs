@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">แอปของฉัน</string>
     <string name="widget_groups_description">แสดงกลุ่มแอปบนหน้าจอหลัก</string>
+    <string name="widget_combined_description">นัดหมายวันนี้ + กลุ่มแอปของฉัน</string>
 </resources>
