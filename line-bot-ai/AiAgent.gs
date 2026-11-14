@@ -1,17 +1,20 @@
 /**
  * AiAgent.gs — เลขา AI (Gemini) ต่อเข้ากับบอท LINE ตัวเดิม · อ่านชีตได้อย่างเดียว แก้อะไรไม่ได้
  *
- * ต่อเข้าโค้ดเดิมแค่ 1 บรรทัด ท้ายฟังก์ชัน routeEvent_ ตรงจุดที่ปล่อยข้อความทั่วไปผ่านไปเฉย ๆ
+ * ต่อเข้าโค้ดเดิมแค่ 1 บรรทัด เป็นบรรทัดแรกของฟังก์ชัน routeEvent_
  *
- *     if (typeof AiAgent_handle === "function" && AiAgent_handle(ev)) return;   // ← เพิ่มบรรทัดนี้
- *     return;
+ *     function routeEvent_(ev) {
+ *       if (typeof AiAgent_handle === "function" && AiAgent_handle(ev)) return;   // ← เพิ่มบรรทัดนี้
+ *       ...โค้ดเดิม...
  *
- *   คำสั่งเดิมของบอทถูกจัดการก่อนถึงบรรทัดนี้ จึงทำงานเหมือนเดิมทุกอย่าง
- *   ข้อความที่ไม่เข้าเงื่อนไขข้างล่าง → AiAgent_handle คืน false ทันที = บอทเงียบเหมือนเดิม
+ *   ไม่เข้าเงื่อนไขข้างล่าง → AiAgent_handle คืน false ทันที = โค้ดเดิมทำงานต่อเหมือนเดิมทุกอย่าง
+ *   คำสั่งที่ขึ้นต้นด้วย / ในแชทส่วนตัว (เช่น /id /deal) ปล่อยให้โค้ดเดิมเสมอ ยกเว้น /ถาม /ai /reset
  *
- * AI จะตอบเฉพาะ 2 กรณี
- *   1) แชทส่วนตัว และผู้ส่งคือ AI_OWNER_USER_ID เท่านั้น (คนอื่นทักแชทส่วนตัวมา = เงียบเหมือนเดิม)
- *   2) ในกลุ่มที่อนุญาต และข้อความขึ้นต้นด้วย @ai · /ถาม · /ai หรือแท็กชื่อบอท
+ * ทำงานเฉพาะ 3 กรณี
+ *   1) แชทส่วนตัวจาก AI_OWNER_USER_ID → เลขา AI ตอบ
+ *   2) ในกลุ่มที่อนุญาต และข้อความขึ้นต้นด้วย @ai · /ถาม · /ai หรือแท็กชื่อบอท → เลขา AI ตอบ
+ *   3) คนอื่นทักแชทส่วนตัว (ข้อความ สติกเกอร์ รูป ฯลฯ) → ตอบด้วยข้อความ AI_STRANGER_REPLY (ไม่ใช้ AI)
+ *      คนเดิมได้รับซ้ำไม่เกินทุก 6 ชั่วโมง · ไม่ตั้งค่านี้ = เงียบเหมือนเดิม
  *
  * Script Properties (Project Settings → Script Properties)
  *   GEMINI_API_KEY      ต้องมี    คีย์จาก Google AI Studio
@@ -23,7 +26,8 @@
  *   AI_FACTORY_NOTES    ควรใส่    ความรู้พื้นฐานของหน่วยงาน (ขั้นตอนงาน ความหมายสถานะ แท็บไหนเก็บอะไร)
  *   AI_SHEET_ID         ไม่บังคับ  ไฟล์ที่ให้ AI อ่าน — ไม่ใส่ = ใช้ getDealSheetId() ของโค้ดเดิม
  *   AI_MEMORY_SHEET_ID  สร้างให้เองตอนรัน AiAgent_setup() — ความจำแยกไฟล์ ไม่ปนไฟล์โรงงาน
- *   AI_OFF              ใส่ 1 = ปิด AI ทันที (บอทกลับไปเงียบเหมือนเดิม) ไม่ต้อง deploy ใหม่
+ *   AI_STRANGER_REPLY   ไม่บังคับ  ข้อความตอบคนอื่นที่ทักแชทส่วนตัว เช่น ให้โทรมือถือแทน · ขึ้นบรรทัดใหม่พิมพ์ \n
+ *   AI_OFF              ใส่ 1 = ปิดทุกอย่างของไฟล์นี้ทันที (บอทกลับไปเหมือนเดิม) ไม่ต้อง deploy ใหม่
  *
  * ฟังก์ชันที่กด Run ได้จากหน้า editor: AiAgent_setup · AiAgent_test · AiAgent_listModels
  */
@@ -36,6 +40,7 @@ var AI_CFG = {
   MODEL: 'gemini-flash-latest',
   GROUP_PREFIXES: '@ai,/ถาม,/ai',
   RESET_WORDS: ['/reset', '/ล้างความจำ', '/ลืม'],
+  STRANGER_COOLDOWN_SEC: 21600,   // ตอบคนแปลกหน้าคนเดิมซ้ำได้ทุกกี่วินาที (6 ชม. = สูงสุดที่แคชเก็บได้)
 
   // แท็บต้องห้าม ตั้งใน Script Properties: AI_BLOCKED_TABS (ทุกกรณี) · AI_GROUP_BLOCKED_TABS (เฉพาะในกลุ่ม)
   // คอลัมน์ที่หัวตรงนี้ → แสดงเป็น *** เสมอ และค้น/นับไม่ได้
@@ -79,9 +84,11 @@ function AiAgent_handle(ev) {
 
   try {
     if (aiSeenBefore_(ev)) return true;   // LINE ส่งซ้ำ (redelivery) — ตอบไปแล้ว
-    aiProcess_(ev, req);
+    if (req.mode === 'stranger') aiStrangerReply_(ev, req);
+    else aiProcess_(ev, req);
   } catch (err) {
     console.log('AiAgent error: ' + (err && err.stack || err));
+    if (req.mode === 'stranger') return true;
     var msg = req.mode === 'owner'
       ? '⚠️ เลขา AI ขัดข้อง: ' + String(err && err.message || err).slice(0, 300)
       : '⚠️ เลขา AI ขัดข้อง ลองใหม่อีกครั้ง';
@@ -90,18 +97,28 @@ function AiAgent_handle(ev) {
   return true;
 }
 
-/** ข้อความนี้เข้าเงื่อนไขไหม → { mode, chatId, text } หรือ null */
+/** ข้อความนี้เข้าเงื่อนไขไหม → { mode: owner|group|stranger, chatId, text } หรือ null (= ให้โค้ดเดิมทำต่อ) */
 function aiRoute_(ev) {
-  if (!ev || ev.type !== 'message' || !ev.message || ev.message.type !== 'text') return null;
+  if (!ev || ev.type !== 'message' || !ev.message) return null;
   if (/^(1|true|yes|on)$/i.test(aiProp_('AI_OFF'))) return null;   // สวิตช์ปิดฉุกเฉิน ไม่ต้อง deploy ใหม่
   var src = ev.source || {};
+  var isText = ev.message.type === 'text';
+  var text = isText ? String(ev.message.text || '').trim() : '';
 
   if (src.type === 'user') {
     var owner = aiProp_('AI_OWNER_USER_ID');
-    if (!owner || src.userId !== owner) return null;
-    return { mode: 'owner', chatId: src.userId, text: String(ev.message.text || '').trim() };
+    if (owner && src.userId === owner) {
+      if (!isText) return null;
+      var q = aiOwnerQuestion_(text);
+      return q === null ? null : { mode: 'owner', chatId: src.userId, text: q };
+    }
+    // คนอื่นทักแชทส่วนตัว — ตอบข้อความที่ตั้งไว้ (ถ้าตั้ง) · คำสั่ง / เช่น /id ยังให้โค้ดเดิมตอบ
+    if (!src.userId || !aiProp_('AI_STRANGER_REPLY')) return null;
+    if (isText && text.charAt(0) === '/') return null;
+    return { mode: 'stranger', chatId: src.userId };
   }
 
+  if (!isText) return null;
   if (src.type === 'group' || src.type === 'room') {
     var chatId = src.groupId || src.roomId;
     if (!aiGroupAllowed_(chatId)) return null;
@@ -125,7 +142,19 @@ function aiGroupQuestion_(msg) {
     return raw.trim();
   }
 
-  var t = raw.trim(), lower = t.toLowerCase();
+  return aiStripPrefix_(raw.trim());
+}
+
+/** แชทส่วนตัวของเจ้าของ: ข้อความปกติ → ถาม AI · /reset → ล้างความจำ · /ถาม /ai → ถาม AI · คำสั่ง / อื่น → null (โค้ดเดิม) */
+function aiOwnerQuestion_(text) {
+  if (text.charAt(0) !== '/') return text;
+  if (AI_CFG.RESET_WORDS.indexOf(text.toLowerCase()) >= 0) return text;
+  return aiStripPrefix_(text);
+}
+
+/** ขึ้นต้นด้วยคำนำหน้า (@ai /ถาม /ai) → ส่วนที่เหลือ · ไม่ใช่ → null */
+function aiStripPrefix_(t) {
+  var lower = t.toLowerCase();
   var prefixes = aiList_(aiProp_('AI_GROUP_PREFIXES') || AI_CFG.GROUP_PREFIXES);
   for (var i = 0; i < prefixes.length; i++) {
     var p = prefixes[i].toLowerCase();
@@ -142,6 +171,14 @@ function aiGroupAllowed_(id) {
   var ids = aiList_(aiProp_('AI_GROUP_IDS'));
   if (!ids.length && typeof getGroupId === 'function') ids = aiList_(getGroupId());
   return ids.indexOf(id) >= 0;
+}
+
+/** ตอบคนอื่นที่ทักแชทส่วนตัว — คนเดิมได้รับซ้ำไม่เกินทุก STRANGER_COOLDOWN_SEC จะได้ไม่ตอบทุกสติกเกอร์ */
+function aiStrangerReply_(ev, req) {
+  var cache = CacheService.getScriptCache(), key = 'ai:stranger:' + req.chatId;
+  if (cache.get(key)) return;
+  aiReply_(ev.replyToken, aiProp_('AI_STRANGER_REPLY').replace(/\\n/g, '\n'));
+  cache.put(key, '1', AI_CFG.STRANGER_COOLDOWN_SEC);
 }
 
 /** กันตอบซ้ำเมื่อ LINE ส่ง event เดิมมาอีกรอบ */
@@ -657,6 +694,8 @@ function AiAgent_setup() {
   if (!groups.length && typeof getGroupId === 'function') groups = aiList_(getGroupId());
   console.log(ok(groups.length && groups[0].indexOf('PUT_') !== 0) + ' กลุ่มที่ใช้ @ai ได้: ' + groups.length + ' กลุ่ม');
   console.log('ℹ️ โมเดล: ' + (aiProp_('GEMINI_MODEL') || AI_CFG.MODEL));
+  console.log('ℹ️ ตอบคนอื่นที่ทักแชทส่วนตัว: ' +
+              (aiProp_('AI_STRANGER_REPLY') ? '"' + aiProp_('AI_STRANGER_REPLY').replace(/\\n/g, ' / ') + '"' : 'ปิดอยู่ (เงียบเหมือนเดิม)'));
   console.log(ok(aiProp_('AI_FACTORY_NOTES') || AI_FACTORY_NOTES) + ' AI_FACTORY_NOTES' +
               ((aiProp_('AI_FACTORY_NOTES') || AI_FACTORY_NOTES) ? '' : ' — ยังไม่ได้ใส่ AI จะไม่รู้จักแท็บ/สถานะของหน่วยงาน'));
   console.log((aiProp_('AI_BLOCKED_TABS') ? '✅' : '⚠️') + ' แท็บต้องห้าม: ' + (aiProp_('AI_BLOCKED_TABS') || '(ยังไม่ได้ตั้ง AI_BLOCKED_TABS)'));
