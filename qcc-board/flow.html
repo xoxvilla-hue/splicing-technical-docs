@@ -1,0 +1,235 @@
+<title>ผังเดินงานต่อหัวสายพาน</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: swimlane — stations run top to bottom, three lanes left to right (belt / job card / system); stacks into one card per station on phones */
+:root{
+  --bg:#f2f5f1; --surface:#ffffff; --ink:#1a1f1c; --muted:#59635c; --line:#d3dad2;
+  --rubber:#232628; --rubber-2:#33383a; --rubber-ink:#eef1ee; --rubber-muted:#b7beb9;
+  --card:#fbfaf5; --card-ink:#2c3a8f; --card-line:#c6cbe6;
+  --floor:#1f7446; --floor-tint:#dcefe3;
+  --warn:#a8460b; --warn-tint:#fbe6d6;
+  --marker:#c81d70; --marker-tint:#fbe3ef;
+  --paint:#ff5aa8;
+  --f-display:"Chakra Petch","IBM Plex Sans Thai","Noto Sans Thai","Leelawadee UI",sans-serif;
+  --f-body:"IBM Plex Sans Thai","Noto Sans Thai","Leelawadee UI","Thonburi",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121514; --surface:#1b1f1d; --ink:#e7ebe8; --muted:#9ba59e; --line:#2f3532;
+    --rubber:#0b0d0e; --rubber-2:#262b2d; --rubber-ink:#eef1ee; --rubber-muted:#aab1ac;
+    --card:#212624; --card-ink:#aeb9ff; --card-line:#3b4272;
+    --floor:#5cc68a; --floor-tint:#15301f;
+    --warn:#f2a660; --warn-tint:#34220f;
+    --marker:#ff5fa8; --marker-tint:#3a1528;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121514; --surface:#1b1f1d; --ink:#e7ebe8; --muted:#9ba59e; --line:#2f3532;
+  --rubber:#0b0d0e; --rubber-2:#262b2d; --rubber-ink:#eef1ee; --rubber-muted:#aab1ac;
+  --card:#212624; --card-ink:#aeb9ff; --card-line:#3b4272;
+  --floor:#5cc68a; --floor-tint:#15301f;
+  --warn:#f2a660; --warn-tint:#34220f;
+  --marker:#ff5fa8; --marker-tint:#3a1528;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.6 var(--f-body);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:28px 56px;
+}
+.wrap{max-width:1120px; margin:0 auto; display:grid; gap:22px}
+header{display:grid; gap:6px}
+h1{font-family:var(--f-display); font-weight:700; font-size:clamp(1.6rem, 4.2vw, 2.4rem); line-height:1.2; margin:0; text-wrap:balance}
+.sub{margin:0; color:var(--muted); max-width:62ch}
+.kind{margin:0; font-size:.86rem; color:var(--muted)}
+.kind b{color:var(--ink); font-weight:600}
+
+.legend{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:.86rem; color:var(--muted)}
+.legend .item{display:inline-flex; align-items:center; gap:7px}
+.sw{width:22px; height:14px; border-radius:3px; display:inline-block}
+.sw.belt{background:var(--rubber)}
+.sw.card{background:var(--card); border:1px solid var(--card-line)}
+.sw.sys{background:var(--surface); border:1px solid var(--line)}
+.sw.gap{background:transparent; border:2px dashed var(--marker)}
+
+.chip{display:inline-block; font-size:.78rem; font-weight:600; line-height:1.3; padding:3px 9px; border-radius:999px; white-space:nowrap}
+.chip.ok{background:var(--floor-tint); color:var(--floor)}
+.chip.bad{background:var(--warn-tint); color:var(--warn)}
+.chip.plan{background:transparent; color:var(--card-ink); border:1.5px dashed var(--card-ink)}
+.chip.anchor{background:var(--ink); color:var(--bg)}
+
+.flow{display:grid; gap:0}
+.row{display:grid; grid-template-columns:10.5rem repeat(3, minmax(0,1fr)); border-top:1px solid var(--line)}
+.row.head{border-top:0}
+.lh{font-family:var(--f-display); font-weight:600; font-size:.95rem; padding:8px 14px; letter-spacing:.02em}
+.lh.belt{background:var(--rubber); color:var(--rubber-ink); border-radius:10px 10px 0 0}
+.lh.card{color:var(--card-ink)}
+.lh.sys{color:var(--ink)}
+
+.st{padding:14px 14px 14px 4px; display:flex; align-items:flex-start; gap:10px}
+.st .no{font-family:var(--f-mono); font-size:.8rem; min-width:1.8rem; height:1.8rem; display:inline-grid; place-items:center; border-radius:6px; background:var(--ink); color:var(--bg)}
+.st .no.io{background:transparent; color:var(--muted); border:1px solid var(--line); font-family:var(--f-body); font-size:.72rem; min-width:2.4rem}
+.st .name{font-family:var(--f-display); font-weight:700; font-size:1.08rem; line-height:1.35; padding-top:1px}
+
+.cell{padding:12px 14px; min-width:0}
+.cell p{margin:0}
+.cell .tag{display:none}
+.cell.belt{background:var(--rubber); color:var(--rubber-ink)}
+.cell.belt .tag{color:var(--rubber-muted)}
+.mark{display:inline-block; font-family:var(--f-mono); font-size:.82rem; color:var(--paint); border:1.5px solid var(--paint); border-radius:4px; padding:0 7px; margin-top:7px; letter-spacing:.03em}
+.sw-mark{display:inline-block; background:var(--rubber); color:var(--paint); font-family:var(--f-mono); font-size:.76rem; padding:1px 7px; border-radius:3px}
+.cell.belt .hard{color:var(--rubber-muted); font-size:.9rem; margin-top:4px}
+.cell.card p{color:var(--card-ink)}
+.cell.card .slip{background:var(--card); border:1px solid var(--card-line); border-radius:6px; padding:8px 10px}
+.cell.card.away .slip{background:transparent; border:1.5px dashed var(--card-line); color:var(--muted)}
+.cell.card.away p{color:var(--muted)}
+.cell.card.back .slip{border-left:4px solid var(--card-ink)}
+.cell.sys{display:grid; gap:8px; align-content:start}
+.np{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 10px; margin:0}
+.np dt{font-size:.74rem; font-weight:600; letter-spacing:.04em; color:var(--muted); padding-top:2px}
+.np dd{margin:0}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.num{font-family:var(--f-mono); font-size:.92em}
+
+.gapzone{border:2px dashed var(--marker); border-radius:12px; margin:8px 0; overflow:hidden}
+.gapzone .row:first-of-type{border-top:0}
+.gaplabel{background:var(--marker-tint); color:var(--marker); font-weight:600; font-size:.88rem; padding:7px 14px}
+
+.notes{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px 20px; display:grid; gap:10px}
+.notes h2{font-family:var(--f-display); font-size:1.15rem; margin:0}
+.notes ol{margin:0; padding-left:1.3rem; display:grid; gap:8px; max-width:72ch}
+.foot{font-size:.8rem; color:var(--muted); margin:0}
+
+@media (max-width: 720px){
+  .row.head{display:none}
+  .row{grid-template-columns:1fr; border-top:0; margin-bottom:14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .gapzone .row{border-radius:0; border:0; border-top:1px solid var(--line); margin:0}
+  .gapzone .row:first-of-type{border-top:0}
+  .st{padding:12px 14px; background:var(--surface)}
+  .cell .tag{display:block; font-size:.72rem; font-weight:600; letter-spacing:.05em; color:var(--muted); margin-bottom:3px}
+  .cell.card .tag{color:var(--card-ink)}
+  .np{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>ผังเดินงานต่อหัวสายพาน</h1>
+    <p class="sub">สายพาน ใบแข็ง และข้อมูลที่เข้าระบบ เดินไปด้วยกันตรงไหน แยกกันตรงไหน และตรงไหนที่ระบบยังไม่รู้เลขออเดอร์</p>
+    <p class="kind">ผังแบบนี้เรียกว่า <b>Swimlane Flowchart</b> (โฟลว์ชาร์ตแบ่งเลน) แต่ละเลนคือของหนึ่งอย่างที่เดินทางผ่านไลน์</p>
+  </header>
+
+  <div class="legend" aria-label="คำอธิบายสัญลักษณ์">
+    <span class="item"><span class="sw belt"></span>สายพาน</span>
+    <span class="item"><span class="sw-mark">07951/2</span>เลขที่เขียนบนตัวสายพาน</span>
+    <span class="item"><span class="sw card"></span>ใบแข็ง</span>
+    <span class="item"><span class="sw sys"></span>ข้อมูลเข้าระบบ</span>
+    <span class="item"><span class="sw gap"></span>ช่วงที่ระบบไม่ได้เลขออเดอร์</span>
+    <span class="item"><span class="chip ok">ได้ข้อมูลครบ</span></span>
+    <span class="item"><span class="chip bad">ได้ข้อมูลไม่ครบ</span></span>
+    <span class="item"><span class="chip plan">แผน</span></span>
+    <span class="item"><span class="chip anchor">จุดยึดเลขออเดอร์</span></span>
+  </div>
+
+  <div class="flow">
+    <div class="row head">
+      <div></div>
+      <div class="lh belt">สายพาน</div>
+      <div class="lh card">ใบแข็ง (ใบแจ้งตัด/ต่อสายพาน)</div>
+      <div class="lh sys">ข้อมูลเข้าระบบ</div>
+    </div>
+
+    <section class="row">
+      <div class="st"><span class="no io">เข้า</span><span class="name">รับจากแผนกก่อนหน้า</span></div>
+      <div class="cell belt"><span class="tag">สายพาน</span><p>มาถึงพร้อมเลขออเดอร์ที่เขียนไว้บนตัวสายพาน</p><span class="mark">07951/2</span></div>
+      <div class="cell card"><span class="tag">ใบแข็ง</span><div class="slip"><p>มากับสายพาน</p></div></div>
+      <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+        <dl class="np"><dt>ตอนนี้</dt><dd>ระบบดึงออเดอร์เข้าแผนเอง สถานะ "รอคิวลอก"</dd></dl>
+      </div>
+    </section>
+
+    <section class="row">
+      <div class="st"><span class="no">1</span><span class="name">ลอกหัว</span></div>
+      <div class="cell belt"><span class="tag">สายพาน</span><p>ลอกหัว แล้วเข็นด้วยรถเข็นผักไปห้องขัด</p><span class="mark">07951/2</span></div>
+      <div class="cell card"><span class="tag">ใบแข็ง</span><div class="slip"><p>ถูกดึงออก <b>วางไว้ที่โต๊ะลอก</b> มีการเขียนเลขตัวใหญ่กับวันที่ลอกลงใบ</p></div></div>
+      <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+        <dl class="np"><dt>ตอนนี้</dt><dd>พนักงานลอก 2 คน กดในมือถือคนละเครื่อง</dd></dl>
+        <div class="chips"><span class="chip ok">กดครบ 87–98%</span><span class="chip anchor">ต้นทางของเลขออเดอร์</span></div>
+      </div>
+    </section>
+
+    <div class="gapzone">
+      <div class="gaplabel">ช่วงที่มีแค่เลขบนตัวสายพาน ไม่มีใบแข็ง และไม่มีใครบันทึกเลขเข้าระบบ ระบบจึงต้องเดาจากลำดับที่ลอกส่งมา</div>
+
+      <section class="row">
+        <div class="st"><span class="no">2</span><span class="name">ขัดหยาบ</span></div>
+        <div class="cell belt"><span class="tag">สายพาน</span><p>ขัดทีละเส้น เส้นละ 2 หัว บางทีขัดหัวบนหลายเส้นก่อน หรือทิ้งอีกหัวไว้ตอนบ่าย</p><p class="hard">เลขยังอยู่บนตัวสายพาน แต่อ่านยากบนยางดำ และไม่มีใครบันทึกเข้าระบบ</p><span class="mark">07951/2</span></div>
+        <div class="cell card away"><span class="tag">ใบแข็ง</span><div class="slip"><p>ไม่ได้อยู่ที่นี่ รออยู่ที่โต๊ะลอก</p></div></div>
+        <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+          <dl class="np"><dt>ตอนนี้</dt><dd>กดในแอป</dd><dt>แผน</dt><dd>กล่อง CT เดิมนับคร่าวๆ ว่าขัดไปกี่เส้นแล้ว ไม่ต้องรู้เลขออเดอร์</dd></dl>
+          <div class="chips"><span class="chip bad">กดแค่ 23% (9–13 พ.ย.)</span><span class="chip plan">แผน: CT นับเส้น</span></div>
+        </div>
+      </section>
+
+      <section class="row">
+        <div class="st"><span class="no">3</span><span class="name">ประกบ</span></div>
+        <div class="cell belt"><span class="tag">สายพาน</span><p>ประกบหัว เปิดพัดลมเกือบทุกครั้ง</p><p class="hard">เลขยังอยู่บนตัวสายพาน แต่ไม่มีใครบันทึกเข้าระบบ</p><span class="mark">07951/2</span></div>
+        <div class="cell card away"><span class="tag">ใบแข็ง</span><div class="slip"><p>ไม่ได้อยู่ที่นี่ รออยู่ที่โต๊ะลอก</p></div></div>
+        <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+          <dl class="np"><dt>ตอนนี้</dt><dd>กดครั้งเดียวตอนจบ เวลาเริ่มเอามาจากขัดหยาบกดจบ พอขัดหยาบไม่กด เวลาเริ่มประกบจึงหาย</dd><dt>แผน</dt><dd>มือถือยึดที่โต๊ะ ทุกคนต้องแตะเลือกเลขก่อนเริ่มและแตะ "เสร็จ" ถ้าพัดลมเปิดแต่ยังไม่เลือกเลข ไฟเหลืองกะพริบ (CT ที่พัดลม)</dd></dl>
+          <div class="chips"><span class="chip bad">กด 44–64% (ต.ค.)</span><span class="chip plan">แผน: เลือกเลข + ไฟเตือน</span></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="row">
+      <div class="st"><span class="no">4</span><span class="name">อบ</span></div>
+      <div class="cell belt"><span class="tag">สายพาน</span><p>เข้าเครื่องอบ</p><span class="mark">07951/2</span></div>
+      <div class="cell card back"><span class="tag">ใบแข็ง</span><div class="slip"><p>พนักงานอบเดินไปหยิบที่โต๊ะลอก<b>ทุกเส้น</b> บันทึกเลข แล้วใบแข็งไปกับสายพานจากตรงนี้</p></div></div>
+      <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+        <dl class="np"><dt>ตอนนี้</dt><dd>กล่องไฟเครื่องอบ (เขียว = เริ่ม, แดง = เสร็จ, ดับ = ยกออก) + เลขจากใบแข็ง</dd></dl>
+        <div class="chips"><span class="chip ok">เครื่องจับเอง</span><span class="chip anchor">ปลายทาง รู้เลขแน่นอน</span></div>
+      </div>
+    </section>
+
+    <section class="row">
+      <div class="st"><span class="no">5</span><span class="name">เจียแต่ง</span></div>
+      <div class="cell belt"><span class="tag">สายพาน</span><p>เจียแต่ง</p><span class="mark">07951/2</span></div>
+      <div class="cell card"><span class="tag">ใบแข็ง</span><div class="slip"><p>แนบไปกับสายพาน</p></div></div>
+      <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+        <dl class="np"><dt>ตอนนี้</dt><dd>แทบไม่มีใครกด เส้นจึงค้างอยู่ที่ "รอเจียแต่ง"</dd><dt>แผน</dt><dd>เคลียร์เส้นค้างก่อน แล้วฝึกให้กดในมือถือทุกเส้น</dd></dl>
+        <div class="chips"><span class="chip bad">ค้าง <span class="num">31</span> เส้น (13 พ.ย.)</span><span class="chip plan">แผน: ฝึกให้กด</span></div>
+      </div>
+    </section>
+
+    <section class="row">
+      <div class="st"><span class="no io">ออก</span><span class="name">ส่งแผนกขนส่ง</span></div>
+      <div class="cell belt"><span class="tag">สายพาน</span><p>ออกจากแผนก</p><span class="mark">07951/2</span></div>
+      <div class="cell card"><span class="tag">ใบแข็ง</span><div class="slip"><p>ไปพร้อมสายพาน</p></div></div>
+      <div class="cell sys"><span class="tag">ข้อมูลเข้าระบบ</span>
+        <dl class="np"><dt>ตอนนี้</dt><dd>ปิดงาน "เสร็จสมบูรณ์" ระบบคิด KPI ตอนกลางคืน แล้วส่งสรุปเข้า LINE 07:30</dd></dl>
+      </div>
+    </section>
+  </div>
+
+  <section class="notes">
+    <h2>อ่านผังนี้แล้วเห็นอะไร</h2>
+    <ol>
+      <li>เลขออเดอร์ไปกับงาน 2 ทาง คือ<b>เลขที่เขียนบนตัวสายพาน</b> ซึ่งอยู่ตลอดทาง กับ<b>ใบแข็ง</b> ซึ่งแยกจากสายพานที่โต๊ะลอก แล้วกลับมาเจอกันที่อบ</li>
+      <li>ระบบได้เลขแน่นอนแค่ 2 จุด คือ <b>ลอก</b> (พนักงานกดครบ) กับ <b>อบ</b> (พนักงานอบบันทึกจากใบแข็ง)</li>
+      <li>ที่ขัดหยาบกับประกบ เลขยังอยู่บนตัวสายพาน แต่ไม่มีใครอ่านแล้วบันทึกเข้าระบบ และบนยางดำบางตัวอ่านยาก เช่น แยก 0 กับ D ไม่ออก ระบบจึงเดาจากลำดับที่ลอกส่งมา ข้อมูลตั้งแต่ 26 ต.ค. (<span class="num">102</span> เส้น) ห้องขัดหยิบตรงลำดับ <span class="num">77%</span> และคลาดไม่เกิน 1 ตำแหน่ง <span class="num">92%</span> ถ้าจะทำให้แม่นขึ้นทีหลัง ไม่ว่าจะใช้คน จอเลือกเส้น หรือกล้อง ก็ต้องอ่านจากเลขบนตัวสายพานนี้</li>
+      <li>เป้าคือคิด Loss Time ให้ถูก จุดที่ต้องแม่นที่สุดคือ<b>ประกบเริ่มและเสร็จเมื่อไหร่</b> เทียบกับเครื่องอบว่างหรือเต็ม จึงให้ประกบเลือกเลขก่อนเริ่มทุกครั้ง มีไฟเตือนที่พัดลมคอยจับว่าลืม ส่วนขัดหยาบเหลือแค่นับคร่าวๆ</li>
+      <li>เจียแต่งมีใบแข็งอยู่กับสายพานแล้ว ปัญหามีแค่ไม่มีใครกด แก้ด้วยการเคลียร์เส้นค้างให้หน้าจอเหลือแต่เส้นจริง แล้วฝึกให้กด</li>
+    </ol>
+  </section>
+
+  <p class="foot">ตัวเลขจากแท็บ Plan และ Plan_เสร็จแล้ว_2569 ของระบบ QCC · แผนสรุป 16 พ.ย. 2569</p>
+</div>
