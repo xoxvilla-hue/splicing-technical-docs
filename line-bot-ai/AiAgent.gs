@@ -55,7 +55,9 @@ var AI_CFG = {
   MAX_TOOL_ROUNDS: 6,      // ให้ AI เรียกเครื่องมือได้กี่รอบต่อคำถาม
   DEFAULT_ROWS: 30,
   MAX_ROWS: 100,
-  SCAN_MAX: 5000,          // ค้น/นับย้อนจากท้ายแท็บไม่เกินกี่แถว
+  SCAN_MAX: 5000,          // ค้น/นับย้อนจากท้ายแท็บไม่เกินกี่แถว (อ่านเฉพาะคอลัมน์ที่ใช้ ไม่อ่านทั้งชีต)
+  SCAN_MAX_WIDE: 2000,     // ค้นทุกคอลัมน์พร้อมกัน อ่านย้อนได้น้อยกว่า
+  TIME_BUDGET_SEC: 40,     // เกินเวลานี้แล้วจะไม่เริ่มรอบค้นข้อมูลใหม่ (กัน LINE รอจนหมดเวลา)
   CELL_MAX: 200,
   TOOL_OUT_MAX: 30000,
   REPLY_MAX: 4900          // LINE จำกัด 5,000 ตัวอักษรต่อข้อความ
@@ -81,6 +83,7 @@ function AiAgent_handle(ev) {
     return false;
   }
   if (!req) return false;
+  aiTick_();
 
   try {
     if (aiSeenBefore_(ev)) return true;   // LINE ส่งซ้ำ (redelivery) — ตอบไปแล้ว
@@ -228,7 +231,12 @@ function aiAsk_(question, history, mode) {
     tools: [{ functionDeclarations: AI_TOOLS }]
   };
 
+  if (!_aiT0) aiTick_();
   for (var round = 0; round <= AI_CFG.MAX_TOOL_ROUNDS; round++) {
+    if (round > 0 && aiElapsed_() > AI_CFG.TIME_BUDGET_SEC) {
+      aiLog_('เกินเวลาที่กำหนด หยุดค้นข้อมูล');
+      return 'ใช้เวลานานเกินไป ลองถามให้แคบลง เช่น ระบุเลขออเดอร์หรือชื่อแท็บ';
+    }
     var res = aiGemini_(model, key, body);
     var cand = res.candidates && res.candidates[0];
     if (!cand || !cand.content || !cand.content.parts) {
@@ -248,12 +256,14 @@ function aiAsk_(question, history, mode) {
     contents.push({
       role: 'user',
       parts: calls.map(function (p) {
-        var fc = p.functionCall, out;
+        var fc = p.functionCall, out, t0 = Date.now();
         try {
           out = aiRunTool_(fc.name, fc.args || {}, mode);
         } catch (err) {
           out = { error: String(err && err.message || err) };
         }
+        aiLog_('เครื่องมือ ' + fc.name + ' ' + JSON.stringify(fc.args || {}).slice(0, 150) + ' ใช้ ' +
+               ((Date.now() - t0) / 1000).toFixed(1) + ' วินาที' + (out && out.error ? ' · ผิดพลาด: ' + out.error : ''));
         var fr = { name: fc.name, response: out };
         if (fc.id) fr.id = fc.id;
         return { functionResponse: fr };
@@ -272,10 +282,13 @@ function aiGemini_(model, key, body) {
     payload: JSON.stringify(body),
     muteHttpExceptions: true
   };
-  for (var attempt = 0; attempt < 2; attempt++) {
+  for (var attempt = 0; attempt < 3; attempt++) {
+    var t0 = Date.now();
     var r = UrlFetchApp.fetch(url, opt), code = r.getResponseCode();
+    aiLog_('Gemini ตอบ ' + code + ' ใช้ ' + ((Date.now() - t0) / 1000).toFixed(1) + ' วินาที' + (attempt ? ' (ลองรอบที่ ' + (attempt + 1) + ')' : ''));
     if (code === 200) return JSON.parse(r.getContentText());
-    if ((code === 429 || code >= 500) && attempt === 0) { Utilities.sleep(1500); continue; }
+    // 429 = ถูกจำกัดอัตรา · 5xx = ฝั่ง Google ไม่ว่าง (มักหายเองใน 1–2 นาที) → รอแล้วลองใหม่ได้ 2 ครั้ง
+    if ((code === 429 || code >= 500) && attempt < 2) { Utilities.sleep(2000 * (attempt + 1)); continue; }
     throw new Error('Gemini ' + code + ': ' + r.getContentText().slice(0, 300));
   }
 }
@@ -384,7 +397,7 @@ function aiToolListTabs_(mode) {
 
   var seen = {}, tabs = [];
   aiAllowedSheets_(mode).forEach(function (sh) {
-    var head = aiHead_(sh).filter(Boolean).slice(0, 40);
+    var head = aiHead_(sh, 60).filter(Boolean).slice(0, 40);
     var sig = head.join('|');
     var item = { name: sh.getName(), rows: Math.max(0, sh.getLastRow() - 1) };
     if (sig && seen[sig]) item.sameHeadersAs = seen[sig];
@@ -405,14 +418,20 @@ function aiToolReadRows_(a, mode) {
   var fromTop = a.from === 'top';
   var start = fromTop ? 2 : Math.max(2, last - n + 1);
   var count = Math.min(n, last - start + 1);
-  var vals = sh.getRange(start, 1, count, head.length).getDisplayValues();
   var cols = aiPickCols_(head, a.columns);
+  var data = aiReadCols_(sh, start, count, aiPlainIdx_(cols));
 
   var rows = [];
-  vals.forEach(function (r, i) {
-    if (r.join('') === '') return;
-    rows.push(aiRowOut_(r, start + i, cols));
-  });
+  for (var i = 0; i < count; i++) {
+    var any = false;
+    var vals = cols.map(function (c) {
+      if (c.secret) return '***';
+      var v = aiCell_(data[c.i][i]);
+      if (v !== '') any = true;
+      return v;
+    });
+    if (any) rows.push([start + i].concat(vals));
+  }
   var out = {
     tab: sh.getName(), totalRows: last - 1,
     columns: ['แถว'].concat(cols.map(function (c) { return c.name; })),
@@ -425,25 +444,30 @@ function aiToolSearch_(a, mode) {
   var kw = String(a.keyword || '').trim().toLowerCase();
   if (!kw) throw new Error('ต้องใส่ keyword');
   var sh = aiGetTab_(a.tab, mode), head = aiHead_(sh);
-  var scan = aiScan_(sh, head.length);
   var cols = aiPickCols_(head, null);
-  var where = a.column ? [aiColIndex_(head, a.column, true)]
-                       : cols.filter(function (c) { return !c.secret; }).map(function (c) { return c.i; });
+  var where = a.column ? [aiColIndex_(head, a.column, true)] : aiPlainIdx_(cols);
+  var maxRows = a.column ? AI_CFG.SCAN_MAX : AI_CFG.SCAN_MAX_WIDE;
   var limit = aiClamp_(a.limit, AI_CFG.DEFAULT_ROWS, 1, AI_CFG.MAX_ROWS);
 
-  var hits = [];
-  scan.rows.forEach(function (r, i) {
+  // ค้นก่อนโดยอ่านเฉพาะคอลัมน์ที่ใช้ค้น แล้วค่อยดึงแถวที่เจอมาแสดง
+  var scan = aiScan_(sh, where, maxRows);
+  var hitRows = [];
+  for (var i = 0; i < scan.n; i++) {
     for (var k = 0; k < where.length; k++) {
-      if (String(r[where[k]]).toLowerCase().indexOf(kw) >= 0) { hits.push(aiRowOut_(r, scan.start + i, cols)); return; }
+      if (String(scan.cols[where[k]][i]).toLowerCase().indexOf(kw) >= 0) { hitRows.push(scan.start + i); break; }
     }
-  });
+  }
+  var shownRows = hitRows.slice(-limit);
+  var got = aiFetchRows_(sh, shownRows, cols);
   var out = {
-    tab: sh.getName(), keyword: a.keyword, totalMatches: hits.length,
+    tab: sh.getName(), keyword: a.keyword, totalMatches: hitRows.length,
     columns: ['แถว'].concat(cols.map(function (c) { return c.name; })),
-    rows: hits.slice(-limit)
+    rows: shownRows.map(function (rn) {
+      return [rn].concat(cols.map(function (c) { return c.secret ? '***' : aiCell_(got[rn][c.i]); }));
+    })
   };
-  if (hits.length > limit) out.note = 'แสดง ' + limit + ' แถวล่าสุดจาก ' + hits.length + ' แถวที่ตรง';
-  if (scan.truncated) out.scanned = 'ค้นเฉพาะ ' + AI_CFG.SCAN_MAX + ' แถวล่าสุด';
+  if (hitRows.length > limit) out.note = 'แสดง ' + limit + ' แถวล่าสุดจาก ' + hitRows.length + ' แถวที่ตรง';
+  if (scan.truncated) out.scanned = 'ค้นเฉพาะ ' + maxRows + ' แถวล่าสุด';
   return aiFit_(out, true);
 }
 
@@ -452,16 +476,20 @@ function aiToolCountBy_(a, mode) {
   var ci = aiColIndex_(head, a.column, true);
   var wi = a.where_column ? aiColIndex_(head, a.where_column, true) : -1;
   var wv = String(a.where_value || '').trim().toLowerCase();
-  var scan = aiScan_(sh, head.length);
+
+  var idxs = [0];                           // คอลัมน์แรกไว้เช็กว่าแถวว่างไหม
+  [ci, wi].forEach(function (x) { if (x >= 0 && idxs.indexOf(x) < 0) idxs.push(x); });
+  var scan = aiScan_(sh, idxs, AI_CFG.SCAN_MAX);
 
   var counts = {}, total = 0;
-  scan.rows.forEach(function (r) {
-    if (r.join('') === '') return;
-    if (wi >= 0 && String(r[wi]).toLowerCase().indexOf(wv) < 0) return;
-    var v = String(r[ci]).trim() || '(ว่าง)';
+  for (var i = 0; i < scan.n; i++) {
+    var raw = String(scan.cols[ci][i]).trim();
+    if (raw === '' && String(scan.cols[0][i]).trim() === '' && (wi < 0 || String(scan.cols[wi][i]).trim() === '')) continue;   // แถวว่าง
+    if (wi >= 0 && String(scan.cols[wi][i]).toLowerCase().indexOf(wv) < 0) continue;
+    var v = raw || '(ว่าง)';
     counts[v] = (counts[v] || 0) + 1;
     total++;
-  });
+  }
   var list = Object.keys(counts).map(function (k) { return { value: aiCell_(k), count: counts[k] }; })
                    .sort(function (x, y) { return y.count - x.count; });
   var out = { tab: sh.getName(), column: head[ci], total: total, distinct: list.length, counts: list.slice(0, 50) };
@@ -489,8 +517,10 @@ function aiTabAllowed_(name, mode) {
   return !blocked.some(function (b) { return b.toLowerCase() === n; });
 }
 
+var _aiSheets = {};
 function aiAllowedSheets_(mode) {
-  return aiFactorySS_().getSheets().filter(function (sh) { return aiTabAllowed_(sh.getName(), mode); });
+  if (!_aiSheets[mode]) _aiSheets[mode] = aiFactorySS_().getSheets().filter(function (sh) { return aiTabAllowed_(sh.getName(), mode); });
+  return _aiSheets[mode];
 }
 
 /** หาแท็บตามชื่อ (ไม่สนช่องว่าง/ตัวพิมพ์) · แท็บต้องห้ามตอบเหมือนหาไม่เจอ ไม่บอกว่ามีอยู่ */
@@ -503,17 +533,68 @@ function aiGetTab_(name, mode) {
   throw new Error('ไม่พบแท็บ "' + name + '" — เรียก list_tabs เพื่อดูชื่อแท็บที่อ่านได้');
 }
 
-function aiHead_(sh) {
+function aiHead_(sh, maxCols) {
   var c = sh.getLastColumn();
   if (!c) return [];
+  if (maxCols && c > maxCols) c = maxCols;
   return sh.getRange(1, 1, 1, c).getDisplayValues()[0].map(function (v) { return String(v).trim(); });
 }
 
-function aiScan_(sh, width) {
+/**
+ * อ่านเฉพาะคอลัมน์ idxs ของแถว start..start+n-1 → { ลำดับคอลัมน์: [ค่าแต่ละแถว] }
+ * คอลัมน์ติดกันอ่านรวมก้อนเดียว · ไม่แตะคอลัมน์อื่น (คอลัมน์ JSON ยาว ๆ ทำให้ชีตใหญ่ช้ามาก)
+ */
+function aiReadCols_(sh, start, n, idxs) {
+  var sorted = idxs.slice().sort(function (a, b) { return a - b; });
+  var cols = {}, k = 0;
+  while (k < sorted.length) {
+    var a = sorted[k], b = a;
+    while (k + 1 < sorted.length && sorted[k + 1] === b + 1) { k++; b = sorted[k]; }
+    var vals = sh.getRange(start, a + 1, n, b - a + 1).getDisplayValues();
+    for (var c = a; c <= b; c++) cols[c] = aiColumnOf_(vals, c - a);
+    k++;
+  }
+  return cols;
+}
+
+function aiColumnOf_(vals, j) {
+  return vals.map(function (r) { return r[j]; });
+}
+
+/** อ่านเฉพาะคอลัมน์ idxs ย้อนจากท้ายแท็บไม่เกิน maxRows แถว */
+function aiScan_(sh, idxs, maxRows) {
   var last = sh.getLastRow();
-  if (last < 2 || !width) return { start: 2, rows: [], truncated: false };
-  var start = Math.max(2, last - AI_CFG.SCAN_MAX + 1);
-  return { start: start, rows: sh.getRange(start, 1, last - start + 1, width).getDisplayValues(), truncated: start > 2 };
+  if (last < 2 || !idxs.length) return { start: 2, n: 0, cols: {}, truncated: false };
+  var start = Math.max(2, last - maxRows + 1), n = last - start + 1;
+  return { start: start, n: n, cols: aiReadCols_(sh, start, n, idxs), truncated: start > 2 };
+}
+
+/** ดึงแถวที่เจอมาแสดง (เฉพาะคอลัมน์ที่แสดง) → { เลขแถว: { ลำดับคอลัมน์: ค่า } } */
+function aiFetchRows_(sh, rowNos, cols) {
+  var out = {};
+  if (!rowNos.length) return out;
+  var idxs = aiPlainIdx_(cols);
+  var lo = Math.min.apply(null, rowNos), hi = Math.max.apply(null, rowNos);
+  if (hi - lo + 1 <= 300) {                         // แถวอยู่ใกล้กัน → อ่านทีเดียว
+    var data = aiReadCols_(sh, lo, hi - lo + 1, idxs);
+    rowNos.forEach(function (rn) {
+      out[rn] = {};
+      idxs.forEach(function (i) { out[rn][i] = data[i][rn - lo]; });
+    });
+  } else {                                          // กระจายห่างกัน → อ่านทีละแถว
+    var width = sh.getLastColumn();
+    rowNos.forEach(function (rn) {
+      var r = sh.getRange(rn, 1, 1, width).getDisplayValues()[0];
+      out[rn] = {};
+      idxs.forEach(function (i) { out[rn][i] = r[i]; });
+    });
+  }
+  return out;
+}
+
+/** ลำดับคอลัมน์ที่อ่านจริงได้ (ไม่รวมคอลัมน์ลับ) */
+function aiPlainIdx_(cols) {
+  return cols.filter(function (c) { return !c.secret; }).map(function (c) { return c.i; });
 }
 
 /** หาลำดับคอลัมน์จากชื่อหัว: ตรงเป๊ะ → ไม่สนตัวพิมพ์ → มีคำนี้อยู่ */
@@ -542,10 +623,6 @@ function aiPickCols_(head, wanted) {
     cols.push({ i: i, name: h, secret: AI_CFG.SECRET_HEAD_RE.test(h) });
   });
   return cols;
-}
-
-function aiRowOut_(r, rowNo, cols) {
-  return [rowNo].concat(cols.map(function (c) { return c.secret ? '***' : aiCell_(r[c.i]); }));
 }
 
 function aiCell_(v) {
@@ -670,6 +747,12 @@ function aiLoading_(userId) {
 
 /* ================= ตัวช่วยทั่วไป ================= */
 
+var _aiT0 = 0;
+function aiTick_() { _aiT0 = Date.now(); }
+function aiElapsed_() { return (Date.now() - _aiT0) / 1000; }
+/** บันทึกเวลาที่ผ่านไป ดูได้ใน Executions → log · ไว้หาว่าช้าตรงไหน */
+function aiLog_(msg) { console.log('[+' + aiElapsed_().toFixed(1) + 's] ' + msg); }
+
 var _aiProps = null;
 function aiProp_(k) {
   if (!_aiProps) _aiProps = PropertiesService.getScriptProperties().getProperties();
@@ -718,9 +801,11 @@ function AiAgent_setup() {
 
 /** ลองถามโดยไม่ผ่าน LINE — ดูคำตอบใน Execution log (ไม่บันทึกความจำ) */
 function AiAgent_test() {
+  aiTick_();
   var q = 'ตอนนี้ในแผนมีงานค้างกี่รายการ แยกตามสถานะ';
   console.log('ถาม: ' + q);
   console.log('ตอบ:\n' + aiAsk_(q, [], 'owner'));
+  aiLog_('เสร็จ');
 }
 
 /** ดูรายชื่อโมเดล Gemini ที่คีย์นี้ใช้ได้ — เอาชื่อไปใส่ GEMINI_MODEL */
