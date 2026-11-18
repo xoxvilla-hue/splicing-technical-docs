@@ -20,7 +20,7 @@
  *   GEMINI_API_KEY      ต้องมี    คีย์จาก Google AI Studio
  *   AI_OWNER_USER_ID    ต้องมี    userId ของเจ้าของ (ขึ้นต้นด้วย U) — พิมพ์ /id ในแชทส่วนตัวกับบอทเพื่อดู
  *   AI_GROUP_IDS        ไม่บังคับ  groupId ที่ใช้ @ai ได้ คั่นด้วย , — ไม่ใส่ = ใช้ LINE_GROUP_ID (กลุ่มเดิม)
- *   GEMINI_MODEL        ไม่บังคับ  ค่าเริ่มต้น gemini-flash-latest (ดูรุ่นที่ใช้ได้: รัน AiAgent_listModels)
+ *   GEMINI_MODEL        ไม่บังคับ  ค่าเริ่มต้น gemini-flash-latest · ใส่หลายรุ่นคั่นด้วย , ได้ (รุ่นแรกไม่ว่าง สลับรุ่นถัดไปเอง)
  *   AI_BLOCKED_TABS     ควรใส่    แท็บที่ห้าม AI อ่านทุกกรณี คั่นด้วย , — ใส่ทุกแท็บที่มีโทเคน/รหัสลับ
  *   AI_GROUP_BLOCKED_TABS ควรใส่  แท็บที่ห้ามเปิดเมื่อถามในกลุ่ม เช่น แท็บข้อมูลพนักงาน
  *   AI_FACTORY_NOTES    ควรใส่    ความรู้พื้นฐานของหน่วยงาน (ขั้นตอนงาน ความหมายสถานะ แท็บไหนเก็บอะไร)
@@ -222,7 +222,9 @@ function aiProcess_(ev, req) {
 function aiAsk_(question, history, mode) {
   var key = aiProp_('GEMINI_API_KEY');
   if (!key) throw new Error('ยังไม่ได้ใส่ GEMINI_API_KEY ใน Script Properties');
-  var model = (aiProp_('GEMINI_MODEL') || AI_CFG.MODEL).replace(/^models\//, '');
+  // GEMINI_MODEL ใส่ได้หลายรุ่นคั่นด้วย , — รุ่นแรกไม่ว่าง (429/5xx) จะสลับไปรุ่นถัดไปเอง
+  var models = aiList_(aiProp_('GEMINI_MODEL') || AI_CFG.MODEL).map(function (m) { return m.replace(/^models\//, ''); });
+  if (!models.length) models = [AI_CFG.MODEL];
 
   var contents = (history || []).concat([{ role: 'user', parts: [{ text: question }] }]);
   var body = {
@@ -237,7 +239,7 @@ function aiAsk_(question, history, mode) {
       aiLog_('เกินเวลาที่กำหนด หยุดค้นข้อมูล');
       return 'ใช้เวลานานเกินไป ลองถามให้แคบลง เช่น ระบุเลขออเดอร์หรือชื่อแท็บ';
     }
-    var res = aiGemini_(model, key, body);
+    var res = aiGemini_(models, key, body);
     var cand = res.candidates && res.candidates[0];
     if (!cand || !cand.content || !cand.content.parts) {
       var why = (cand && cand.finishReason) || (res.promptFeedback && res.promptFeedback.blockReason) || 'ไม่มีคำตอบ';
@@ -273,8 +275,18 @@ function aiAsk_(question, history, mode) {
   return 'ค้นข้อมูลหลายรอบเกินไป ลองถามให้แคบลงอีกนิด';
 }
 
-function aiGemini_(model, key, body) {
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
+var _aiModelOk = '';   // รุ่นที่ตอบสำเร็จล่าสุดในคำถามนี้ — รอบถัดไปใช้รุ่นเดิมก่อน (ลายเซ็นความคิดของแต่ละรุ่นใช้ข้ามรุ่นไม่ได้)
+
+/**
+ * เรียก Gemini · models = รายชื่อรุ่นเรียงตามลำดับที่อยากใช้
+ *   หลายรุ่น: รุ่นไหนไม่ว่าง (429/5xx) หรือใช้ไม่ได้ (400/404) ข้ามไปรุ่นถัดไปทันที ไม่รอ
+ *   รุ่นเดียว: ลองรุ่นเดิมซ้ำอีก 1 ครั้ง (เฉพาะ 429/5xx)
+ *   401/403 = คีย์มีปัญหา หยุดทันที · เกินเวลา TIME_BUDGET_SEC แล้วไม่ลองรุ่นต่อไป
+ */
+function aiGemini_(models, key, body) {
+  var order = models.slice(), at = order.indexOf(_aiModelOk);
+  if (at > 0) { order.splice(at, 1); order.unshift(_aiModelOk); }
+  var tries = order.length > 1 ? order : [order[0], order[0]];
   var opt = {
     method: 'post',
     contentType: 'application/json',
@@ -282,15 +294,21 @@ function aiGemini_(model, key, body) {
     payload: JSON.stringify(body),
     muteHttpExceptions: true
   };
-  for (var attempt = 0; attempt < 3; attempt++) {
-    var t0 = Date.now();
-    var r = UrlFetchApp.fetch(url, opt), code = r.getResponseCode();
-    aiLog_('Gemini ตอบ ' + code + ' ใช้ ' + ((Date.now() - t0) / 1000).toFixed(1) + ' วินาที' + (attempt ? ' (ลองรอบที่ ' + (attempt + 1) + ')' : ''));
-    if (code === 200) return JSON.parse(r.getContentText());
-    // 429 = ถูกจำกัดอัตรา · 5xx = ฝั่ง Google ไม่ว่าง (มักหายเองใน 1–2 นาที) → รอแล้วลองใหม่ได้ 2 ครั้ง
-    if ((code === 429 || code >= 500) && attempt < 2) { Utilities.sleep(2000 * (attempt + 1)); continue; }
-    throw new Error('Gemini ' + code + ': ' + r.getContentText().slice(0, 300));
+  var lastErr = null;
+  for (var i = 0; i < tries.length; i++) {
+    if (i > 0 && aiElapsed_() > AI_CFG.TIME_BUDGET_SEC) break;
+    var m = tries[i], t0 = Date.now();
+    var r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent', opt);
+    var code = r.getResponseCode();
+    aiLog_('Gemini ' + m + ' ตอบ ' + code + ' ใช้ ' + ((Date.now() - t0) / 1000).toFixed(1) + ' วินาที');
+    if (code === 200) { _aiModelOk = m; return JSON.parse(r.getContentText()); }
+
+    lastErr = new Error('Gemini ' + code + ' (' + m + '): ' + r.getContentText().slice(0, 300));
+    var retryable = code === 429 || code >= 500, sameNext = tries[i + 1] === m;
+    if (code === 401 || code === 403 || (sameNext && !retryable)) throw lastErr;
+    if (sameNext) Utilities.sleep(2000);
   }
+  throw lastErr;
 }
 
 function aiSystemPrompt_(mode) {
